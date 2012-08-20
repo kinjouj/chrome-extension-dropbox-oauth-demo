@@ -1,0 +1,28 @@
+{
+  "name": "chrome-extension-dropbox-oauth-demo",
+  "description": "Chrome Extension Dropbox OAuth Demo (using oauth.js)",
+  "version": "0.1",
+  "manifest_version": 2,
+  "browser_action": {
+    "default_title": "Chrome Extension - Dropbox OAuth Demo -",
+    "default_icon": "icon.png"
+  },
+  "background": {
+    "scripts": [
+      "library/jquery.js",
+      "library/sha1.js",
+      "library/oauth.js",
+      "const.js",
+      "dropbox.js",
+      "background.js"
+    ]
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://www.dropbox.com/1/oauth/authorize"],
+      "js": ["content_script.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "permissions": ["https://*.dropbox.com/"]
+}
