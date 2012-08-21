@@ -14,6 +14,6 @@ icon.png
 
 ### settings of const.js
 
-const CONSUMER_KEY = "";
+const OAUTH_CONSUMER_KEY = "";
 
-const CONSUMER_SECRET = "";
+const OAUTH_CONSUMER_SECRET = "";
