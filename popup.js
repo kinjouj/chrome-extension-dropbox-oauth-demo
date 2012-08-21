@@ -1,24 +1,32 @@
 (function(undefined) {
+  var URL = window.URL || window.webkitURL;
+  var BlobBuilder = window.BlobBuilder || window.WebKitBlobBuilder;
+
   var root = $("body");
 
   var dropbox = new Dropbox();
-  dropbox.getThumbnails(function(binaryData) {
-    var bb = new WebKitBlobBuilder();
-    bb.append(binaryData);
 
-    var canvas = document.createElement("canvas");
-    var context = canvas.getContext("2d");
+  if (dropbox.isAuthorized()) {
+    dropbox.getThumbnails(function(binaryData) {
+      var bb = new BlobBuilder();
+      bb.append(binaryData);
 
-    var img = new Image();
-    img.src = webkitURL.createObjectURL(bb.getBlob());
-    img.onload = function() {
-      context.canvas.width = img.width;
-      context.canvas.height = img.height;
-      context.drawImage(img, 0, 0);
+      var canvas = document.createElement("canvas");
+      var context = canvas.getContext("2d");
 
-      webkitURL.revokeObjectURL(this.src);
-    };
+      var img = new Image();
+      img.src = URL.createObjectURL(bb.getBlob());
+      img.onload = function() {
+        context.canvas.width = img.width;
+        context.canvas.height = img.height;
+        context.drawImage(img, 0, 0);
 
-    $(root).append($("<div>").css("margin", "15px").append($(canvas)));
-  });
+        URL.revokeObjectURL(this.src);
+      };
+
+      $(root).append($("<div>").css("margin", "15px").append($(canvas)));
+    });
+  } else {
+    dropbox.login();
+  }
 })();

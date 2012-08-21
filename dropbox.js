@@ -1,7 +1,6 @@
 const OAUTH_TOKEN_KEY = "oauth_token";
 const OAUTH_TOKEN_SECRET_KEY = "oauth_token_secret";
 
-
 var Dropbox = function() {};
 
 Dropbox.prototype.getToken = function() {
@@ -9,7 +8,9 @@ Dropbox.prototype.getToken = function() {
 };
 
 Dropbox.prototype.setToken = function(token) {
-  localStorage.setItem(OAUTH_TOKEN_KEY, token);
+  if (_.isString(token)) {
+    localStorage.setItem(OAUTH_TOKEN_KEY, token);
+  }
 };
 
 Dropbox.prototype.getTokenSecret = function() {
@@ -17,25 +18,43 @@ Dropbox.prototype.getTokenSecret = function() {
 };
 
 Dropbox.prototype.setTokenSecret = function(tokenSecret) {
-  return localStorage.setItem(OAUTH_TOKEN_SECRET_KEY, tokenSecret);
+  if (_.isString(tokenSecret)) {
+    return localStorage.setItem(OAUTH_TOKEN_SECRET_KEY, tokenSecret);
+  }
+};
+
+Dropbox.prototype.getAuthorized = function() {
+  var authorized = localStorage.getItem("authorized");
+
+  return _.isString(authorized) && authorized === "true" ? true : false;
+};
+
+Dropbox.prototype.setAuthorized = function() {
+  localStorage.setItem("authorized", true);
 };
 
 Dropbox.prototype.isAuthorized = function() {
-  var authorized = localStorage.getItem("authorized");
+  return _.isString(this.getToken()) && _.isString(this.getTokenSecret()) && this.getAuthorized() === true ? true : false;
+};
 
-  return Boolean(authorized);
+Dropbox.prototype.getParameter = function(res, key) {
+  if (_.isString(res) && _.isString(key)) {
+    var param = OAuth.decodeForm(res);
+
+    if (_.isArray(param)) {
+      return OAuth.getParameter(param, key);
+    }
+  }
+
+  return null;
 };
 
 Dropbox.prototype.getParameterToken = function(res) {
-  var param = OAuth.decodeForm(res);
-
-  return OAuth.getParameter(param, OAUTH_TOKEN_KEY);
+  return this.getParameter(res, OAUTH_TOKEN_KEY);
 };
 
 Dropbox.prototype.getParameterTokenSecret = function(res) {
-  var param = OAuth.decodeForm(res);
-
-  return OAuth.getParameter(param, OAUTH_TOKEN_SECRET_KEY);
+  return this.getParameter(res, OAUTH_TOKEN_SECRET_KEY);
 };
 
 Dropbox.prototype.login = function() {
@@ -59,23 +78,23 @@ Dropbox.prototype.login = function() {
     OAuth.addToURL(message.action, message.parameters),
     $.proxy(
       function(res) {
-        var param = OAuth.decodeForm(res);
+        var token = this.getParameterToken(res);
+        var tokenSecret = this.getParameterTokenSecret(res);
 
-        var token = OAuth.getParameter(param, OAUTH_TOKEN_KEY);
-        var tokenSecret = OAuth.getParameter(param, OAUTH_TOKEN_SECRET_KEY);
+        if (!_.isNull(token) && !_.isNull(tokenSecret)) {
+          message.action = "https://api.dropbox.com/1/oauth/authorize";
+          message.parameters.oauth_token = token;
 
-        message.action = "https://api.dropbox.com/1/oauth/authorize";
-        message.parameters.oauth_token = token;
+          accessor.oauth_token_secret = tokenSecret;
 
-        accessor.oauth_token_secret = tokenSecret;
+          OAuth.setTimestampAndNonce(message);
+          OAuth.SignatureMethod.sign(message, accessor);
 
-        OAuth.setTimestampAndNonce(message);
-        OAuth.SignatureMethod.sign(message, accessor);
+          this.setToken(token);
+          this.setTokenSecret(tokenSecret);
 
-        this.setToken(token);
-        this.setTokenSecret(tokenSecret);
-
-        window.open(OAuth.addToURL(message.action, message.parameters));
+          window.open(OAuth.addToURL(message.action, message.parameters));
+        }
       },
       this
     )
@@ -109,12 +128,18 @@ Dropbox.prototype.sign = function(cb) {
     OAuth.addToURL(message.action, message.parameters),
     $.proxy(
       function(res) {
-        this.setToken(this.getParameterToken(res));
-        this.setTokenSecret(this.getParameterTokenSecret(res));
+        var token = this.getParameterToken(res);
+        var tokenSecret = this.getParameterTokenSecret(res);
 
-        localStorage.setItem("authorized", true);
+        if (!_.isNull(token) && !_.isNull(tokenSecret)) {
+          this.setToken(token);
+          this.setTokenSecret(tokenSecret);
+          this.setAuthorized();
 
-        cb();
+          if (_.isFunction(cb)) {
+            cb();
+          }
+        }
       },
       this
     )
@@ -145,21 +170,29 @@ Dropbox.prototype.getThumbnails = function(cb) {
     $.proxy(
       function(res) {
         res.contents.forEach(function(content) {
-          if (!content.is_dir) {
-            message.action = "https://api-content.dropbox.com/1/thumbnails/sandbox" + content.path;
-            message.parameters.size = "large";
-
-            OAuth.setTimestampAndNonce(message);
-            OAuth.SignatureMethod.sign(message, accessor);
-
-            var xhr = new XMLHttpRequest();
-            xhr.open("GET", OAuth.addToURL(message.action, message.parameters));
-            xhr.responseType = "arraybuffer";
-            xhr.onload = function() {
-              cb(this.response);
-            };
-            xhr.send(null);
+          if (content.is_dir || !_.has(content, "mime_type") || !/^image/.test(content.mime_type)) {
+            return;
           }
+
+          message.action = "https://api-content.dropbox.com/1/thumbnails/sandbox" + content.path;
+          message.parameters.size = "large";
+
+          OAuth.setTimestampAndNonce(message);
+          OAuth.SignatureMethod.sign(message, accessor);
+
+          var url = OAuth.addToURL(message.action, message.parameters);
+
+          var xhr = new XMLHttpRequest();
+          xhr.open("GET", url, true);
+          xhr.responseType = "arraybuffer";
+          xhr.onload = function() {
+            if (this.response instanceof ArrayBuffer) {
+              if (_.isFunction(cb)) {
+                cb(this.response);
+              }
+            }
+          };
+          xhr.send(null);
         });
       },
       this

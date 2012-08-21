@@ -10,6 +10,7 @@
   "background": {
     "scripts": [
       "library/jquery.js",
+      "library/underscore.js",
       "library/sha1.js",
       "library/oauth.js",
       "const.js",
@@ -20,7 +21,7 @@
   "content_scripts": [
     {
       "matches": ["https://www.dropbox.com/1/oauth/authorize"],
-      "js": ["content_script.js"],
+      "js": ["library/underscore.js", "const.js", "content_script.js"],
       "run_at": "document_idle"
     }
   ],
